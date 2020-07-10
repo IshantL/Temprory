@@ -1,0 +1,246 @@
+﻿@using ABS.Common.Records
+@using ABS.Core.Records
+@using ABS.Invoice.Records
+@using ABS_Kendo.Areas.Salvage.Models
+@using ABS_Kendo.Areas.Salvage.Models.Maintenance
+@using ABS_Kendo.Extensions
+@using ABS_Kendo.Models
+@using ABS_Kendo.Services
+@model MaintenanceIndexModel
+@{
+    ViewBag.Title = Model.Session.GetSalvageLabel() + " Maintenance";
+    Layout = "~/Views/Shared/_SplitView.cshtml";
+}
+@section head {
+    @Styles.Render( "~/Content/Salvage/Maintenance" )
+    @Scripts.Render( "~/Scripts/Salvage/Maintenance" )
+}
+@section script {
+    <script>
+        var abs_listing;
+
+        $(function() {
+            abs_listing = new Abs.SalvageListing({
+                listingUrl: '@Url.Action( "Data" )',
+                detailUrl: '@Url.Action( "Details" )',
+                canEdit: @Model.CanEdit().ToString().ToLower(),
+                editUrl: '@Url.Action( "Edit" )',
+                @if( Model.CanDelete() ) {
+                    @: deleteUrl: '@Url.Action( "Delete" )',
+                }
+                picsUrl: '@Url.Action( "Index" )',
+                publicPicsUrl: '@Url.Action( "Salvage", "Pictures", new { Area = "" }, Request.Url.Scheme )',
+                @if( Model.Session.LevelAtLeast( Types.LevelType.Professional ) ) {
+                    if( Model.CanViewTeardown() ) {
+                        @: teardownViewUrl: '@Url.Action( "Index", "TeardownSheet" )',
+                    }
+                    if( Model.CanEditTeardown() ) {
+                        @: teardownEditUrl: '@Url.Action( "Edit", "TeardownSheet" )',
+                    }
+                    if( Model.CanCreateTeardown() ) {
+                        @: teardownCreateUrl: '@Url.Action( "SelectTemplate", "TeardownSheet" )',
+                    }
+                }
+                @if( Model.CanViewParts() ) {
+                    @: partUrl: '@Url.Action( "Index", "Maintenance", new { Area = "Parts" } )',
+                }
+                @if( Model.CanEditParts() ) {
+                    @: partEditUrl: '@Url.Action( "Edit", "Maintenance", new {Area = "Parts"} )',
+                }
+                sellUrl: '@Url.Action( "Create", "Maintenance", new { Area = "Sales" } )',
+                title: '@Model.Session.GetSalvageLabel()',
+                misc1Lbl: '@Model.Session.GetField( FieldRecord.FieldType.Salvage_Misc1 ).Label',
+                misc2Lbl: '@Model.Session.GetField( FieldRecord.FieldType.Salvage_Misc2 ).Label',
+                misc3Lbl: '@Model.Session.GetField( FieldRecord.FieldType.Salvage_Misc3 ).Label',
+                filtering: {
+                        options: {
+                            filterType: '@typeof(SalvageFilter).FullName',
+                            filterExtraType: '@typeof(SalvageFilter.FilteringData).FullName',
+                            filterUrl: '@Url.Action( "GetFilter" )',
+                            saveUrl: '@Url.Action( "SaveFilter" )',
+                            deleteUrl: '@Url.Action( "DeleteFilter" )',
+                            restoreFilter: @Model.RestoreFilter.ToString().ToLower(),
+                            layoutName: "salvage.maintenance"
+                        },
+                    data: {
+                        fields: @Html.Raw( Model.Filter.GetFieldsAsJson() ),
+                        operators: @Html.Raw( Model.Filter.GetOperatorsAsJson() ),
+                        filter: @Html.Raw( Model.Filter.GetFilterAsJson() ),
+                        lists: {
+                            DatePeriods: @Html.Raw( DatePeriod.GetPeriodsAsJson() ),
+                            Users: @Html.Raw( CommonLists.GetUsersAsJson( Model.Session, true, true ) ),
+                            ItemCodes: @Html.Raw( CommonLists.GetItemCodesAsJson( Model.Session, new[] { ItemCodeRecord.ItemType.Salvage } ) ),
+                            Origins: @Html.Raw( CommonLists.GetSalvageOriginsAsJson() ),
+                            Stores: @Html.Raw( CommonLists.GetStoresAsJson( Model.Session ) ),
+                            Statuses: @Html.Raw( SalvageLists.GetStatusesAsJson( Model.Session ) ),
+                            Groups: @Html.Raw( SalvageLists.GetGroupsAsJson( Model.Session ) ),
+                            Misc1: @Html.Raw( CommonLists.GetMiscAsArray( Model.Session, MiscRecord.MiscType.Salvage, MiscRecord.LevelType.One ) ),
+                            Misc2: @Html.Raw( CommonLists.GetMiscAsArray( Model.Session, MiscRecord.MiscType.Salvage, MiscRecord.LevelType.Two ) ),
+                            Misc3: @Html.Raw( CommonLists.GetMiscAsArray( Model.Session, MiscRecord.MiscType.Salvage, MiscRecord.LevelType.Three ) ),
+                            ModelTypes: @Html.Raw( CommonLists.GetModelTypesAsArray( false ) )
+                        }
+                        }
+                    }
+                });
+
+            abs_listing.init();
+        });
+
+        function partSaved() {
+            abs_listing.splitView.reloadDetail();
+        }
+    </script>
+}
+
+<div id="detail-toolbar"></div>
+<div id="detail-content" class="tabbed" data-bind="attr: {data-id: SalvageID, data-uid: uid}">
+    <div id="detail-tabs">
+        <ul>
+            <li data-bind="css: { highlight: salvageHighlight}" class="k-state-active">@Model.Session.GetSalvageLabel()</li>
+            <li data-init="initExpenses" data-bind="css: { highlight: pricesHighlight}">Prices/Costs</li>
+            <li data-bind="css: { highlight: notesHighlight}">Notes</li>
+            <li data-bind="css: { highlight: picturesHighlight}">Pictures</li>
+            <li data-init="initParts" data-bind="css: { highlight: partsHighlight}">Parts</li>
+        </ul>
+        <div>
+            <div data-bind="text: Alert, css: {detail-alert: isAlert}"></div>
+            <div class="row" style="padding-top: 1em">
+                <div class="col-xs-6 col-lg-3">
+                    @using (Html.BeginTablePanel("Make/Model"))
+                    {
+                        @Html.TableDisplayBound("Industry", "text: Industry")
+                        @Html.TableDisplayBound("Year", "text: Year")
+                        @Html.TableDisplayBound("Make", "text: Make")
+                        @Html.TableDisplayBound("Model", "text: Model")
+                        @Html.TableDisplayBound("Type", "text: Type")
+                        @Html.TableDisplayBound("Description", "text: Description")
+                        @Html.TableDisplayBound( "Size", "text: Size" )
+                    }
+                    @using (Html.BeginTablePanel("Origin"))
+                    {
+                        @Html.TableDisplayBound("Type", "text: OriginType")
+                        @Html.TableDisplayBound("Source", "html: OriginLink")
+                    }
+                </div>
+                <div class="col-xs-6 col-lg-3">
+                    @using (Html.BeginTablePanel("Numbers"))
+                    {
+                        @Html.TableDisplayBound("Stock #", "text: StockNum")
+                        @Html.TableDisplayBound("Serial #", "text: SerialNum")
+                        @Html.TableDisplayBound("HP", "text: HorsePower")
+                        @Html.TableDisplayBound("Lot #", "text: LotNum")
+                        @Html.TableDisplayBound("Odometer", "text: OdometerDisplay")
+                    }
+                    @using (Html.BeginTablePanel("Misc"))
+                    {
+                        @Html.TableDisplayBound( Model.Session.GetField( FieldRecord.FieldType.Salvage_Misc1 ).Label, "text: Misc1" )
+                        @Html.TableDisplayBound( Model.Session.GetField( FieldRecord.FieldType.Salvage_Misc2 ).Label, "text: Misc2" )
+                        @Html.TableDisplayBound( Model.Session.GetField( FieldRecord.FieldType.Salvage_Misc3 ).Label, "text: Misc3" )
+                    }
+                </div>
+
+                <div class="clearfix visible-xs"></div>
+
+                <div class="col-xs-6 col-lg-3">
+                    @using (Html.BeginTablePanel("Classifications"))
+                    {
+                        @Html.TableDisplayBound("Condition", "text: Condition")
+                        @Html.TableDisplayBound("Status", "text: Status, style: { color: StatusColor")
+                        @Html.TableDisplayBound("Item Code", "text: ItemCode")
+                    }
+                    @using (Html.BeginTablePanel("Location/Source"))
+                    {
+                        @Html.TableDisplayBound("Location", "text: Location")
+                        @Html.TableDisplayBound("Store", "text: Store")
+                        @Html.TableDisplayBound("Created By", "text: CreatedBy")
+                    }
+                </div>
+
+                <div class="col-xs-6 col-lg-3">
+                    @using ( Html.BeginTablePanel( "Groups", binding: "Groups", template: "groups-template" ) ) { }
+                    @using (Html.BeginTablePanel("Dates"))
+                    {
+                        @Html.TableDisplayBound("Created", "format: {field: DateCreated, format: datetime}" )
+                        @Html.TableDisplayBound("Changed", "format: {field: DateChanged, format: datetime}" )
+                        @Html.TableDisplayBound("Sold", "format: {field: DateSold, format: datetime}" )
+                        @Html.TableDisplayBound("Available", "format: {field: DateAvailable, format: datetime}" )
+                        @Html.TableDisplayBound("Scrapped", "format: {field: DateScrapped, format: datetime}" )
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="padding-top: 1em">
+            <div class="clearfix">
+                @if( Model.CanViewPrice() ) {
+                    <div class="col-sm-3">
+                        @using( Html.BeginTablePanel( "Pricing" ) ) {
+                            @Html.TableDisplayBound( "Price", "format: { field: Price, format: n2}" )
+                        }
+                    </div>
+                }
+                @if( Model.CanViewExpenses() ) {
+                    <div class="col-sm-9" style="padding: 0">
+                        <div id="expenses-grid"></div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="row" style="padding-top: 1em">
+            <div class="col-sm-6">
+                @using( Html.BeginTablePanel( "Private", "linkify" ) ) {
+                    @Html.TableDisplayBound( null, "format: {field: NotesPrivate, format: multiline}", "notes" )
+                }
+                @if( Model.Session.LevelAtLeast( Types.LevelType.Professional ) ) {
+                    using( Html.BeginTablePanel( "AQS", "linkify" ) ) {
+                        @Html.TableDisplayBound( null, "format: {field: NotesAQS, format: multiline}", "notes" )
+                    }
+                    using( Html.BeginTablePanel( "Alert" ) ) {
+                        @Html.TableDisplayBound( null, "text: Alert", "notes" )
+                    }
+                }
+            </div>
+            <div class="col-sm-6">
+                @using( Html.BeginTablePanel( "Public", "linkify" ) ) {
+                    @Html.TableDisplayBound( null, "format: {field: NotesPublic, format: multiline}", "notes" )
+                }
+                @if( Model.Session.LevelAtLeast( Types.LevelType.Professional ) ) {
+                    using( Html.BeginTablePanel( "Website", "linkify" ) ) {
+                        @Html.TableDisplayBound( null, "format: {field: NotesWeb, format: multiline}", "notes" )
+                    }
+                }
+            </div>
+        </div>
+
+        <div>
+            @Html.Partial( "_Pictures", new PictureModel( false ) )
+        </div>
+
+        <div class="full-height" style="padding: 0">
+            <div id="parts-grid"></div>
+        </div>
+    </div>
+</div>
+
+<script type="text/x-kendo-template" id="salvage-status-template">
+    <span #if(StatusColor) {# style="color:#: StatusColor #" #}#>#: Status #</span>
+</script>
+
+<script type="text/x-kendo-template" id="toolbar-buttons-template">
+    <input id="available-only" type="checkbox" checked="checked" />
+    <label for="available-only" style="margin-right: 1em">Available Only</label>
+    @if( Model.CanCreate() ) {
+        <a id="create-btn" class="k-button k-button-icontext" data-bind="click: create"><span class="k-icon custom-icon add-icon">&nbsp;</span>Create</a>
+    }
+    <a id="print-btn" class="k-button k-button-icontext" data-bind="click: print"><span class="k-icon custom-icon print-icon">&nbsp;</span>Print</a>
+    <a id="help-btn" class="k-button k-button-icontext"><span class="k-icon custom-icon help-icon">&nbsp;</span>Help</a>
+    <a id="reset-layout-btn" class="k-button k-button-icon" data-bind="click: resetLayout" title="Restore Layout"><span class="k-icon custom-icon layout-icon">&nbsp;</span></a>
+    <a id="full-page-grid-btn" class="k-button k-button-icon" data-bind="click: toggleFullPageGrid" title="Full Page Grid"><span class="k-icon custom-icon maximize-icon">&nbsp;</span></a>
+</script>
+
+<script type="text/x-kendo-template" id="groups-template">
+    <tr class="text">
+        <td colspan="2" data-bind="text: GroupName"></td>
+    </tr>
+</script>

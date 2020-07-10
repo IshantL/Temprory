@@ -1,0 +1,63 @@
+﻿@model ABS_Kendo.Models.PictureModel
+
+<div id="pictures">
+    <div class="list"></div>
+    @if( Model.CanEdit ) {
+        <div class="upload">
+            <input id="files" name="files" type="file"/>
+        </div>
+    }
+    else {
+        <div class="links"></div>
+    }
+</div>
+
+<script type="text/x-kendo-template" id="picture-template">
+    <div class="picture">
+        <a href="\\#" class="pic" data-id="#=uid#">
+            <img src="#=url#/thumbnail?picid=#=PictureID#&objid=#=ObjectID#&genid=#=GenericID#" alt="#: Caption #" />
+        </a>
+        @if( Model.CanEdit ) {
+            <a href="\\#" class="delete"><span class="k-icon custom-icon delete-icon"></span></a>
+        }
+        <h3>
+            @if( Model.CanEdit ) {
+                <a href="\\#" class="setcaption k-link k-link-underline">
+                    # if(Caption) { #
+                    #: Caption #
+                    # } else { #
+                    Set Caption
+                    # } #
+                </a>
+                <br />
+                @:#if (Private) { #
+                    <input id="#: ObjectID #" class="setprivate" type="checkbox" checked="checked" />
+                @:# } else { #
+                    <input id="#: ObjectID #" class="setprivate" type="checkbox" />
+                @:# } #
+                <label for="#: ObjectID #">Private</label>
+            }
+            else {
+                @:#: Caption #
+                @:# if(Private) { #
+                @: <span class="private">Private</span>
+                @:# } #
+            }
+        </h3>
+    </div>
+</script>
+
+<script type="text/x-kendo-template" id="picture-links-template">
+    <ul>
+        # for (var i = 0; i < data.length; i++) { #
+        <li>#: data[i].publicUrl #</li>
+        # } #
+    <ul>
+</script>
+
+<div id="picture-window">
+    <div class="toolbar"></div>
+    <div class="img">
+        <img src="" />
+    </div>
+</div>
